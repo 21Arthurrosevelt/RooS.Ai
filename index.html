@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RooS OS | Dashboard</title>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- Tailwind CSS (via CDN), com o plugin de tipografia pra formatar texto em Markdown -->
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Renderização de Markdown (respostas da IA) com sanitização contra HTML malicioso -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        roos: {
+                            dark: '#0f172a',    // Slate 900
+                            darker: '#020617',  // Slate 950
+                            primary: '#0ea5e9', // Sky 500
+                            accent: '#f59e0b',  // Amber 500 (Gold)
+                            light: '#f8fafc',   // Slate 50
+                            border: '#e2e8f0',  // Slate 200
+                        }
+                    },
+                    boxShadow: {
+                        'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.05)',
+                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.04)',
+                        'floating': '0 10px 40px -10px rgba(14, 165, 233, 0.15)',
+                    },
+                    animation: {
+                        'fade-in-up': 'fadeInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+                    },
+                    keyframes: {
+                        fadeInUp: {
+                            '0%': { opacity: '0', transform: 'translateY(15px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
+        .hide-scroll::-webkit-scrollbar { display: none; }
+        
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
+        .delay-300 { animation-delay: 300ms; }
+        .delay-400 { animation-delay: 400ms; }
+        
+        .bg-mesh {
+            background-color: #f8fafc; /* Mais claro para o dashboard */
+            background-image: radial-gradient(at 80% 0%, hsla(199,89%,94%,0.7) 0px, transparent 50%),
+                              radial-gradient(at 0% 100%, hsla(210,40%,96%,0.7) 0px, transparent 50%);
+        }
+    </style>
+</head>
+<body class="bg-roos-light text-slate-800 font-sans antialiased overflow-hidden h-screen flex">
+
+    <!-- Tela de Autenticação -->
+    <div id="auth-screen" class="w-full h-full flex items-center justify-center bg-roos-dark p-6">
+        <div class="w-full max-w-sm">
+            <div class="flex items-center justify-center gap-2 text-white font-bold text-2xl tracking-tight mb-8">
+                <i class="ph-fill ph-scales text-roos-accent text-3xl"></i>
+                <span>RooS <span class="text-roos-primary">OS</span></span>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-2xl p-6 sm:p-8">
+                <h1 id="auth-title" class="text-xl font-bold text-slate-800 mb-1">Entrar na sua conta</h1>
+                <p id="auth-subtitle" class="text-sm text-slate-500 mb-6">Acesse o RooS com seu e-mail e senha.</p>
+
+                <div id="auth-error" class="hidden mb-4 text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2"></div>
+
+                <div id="auth-name-field" class="hidden mb-4">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Nome completo</label>
+                    <input id="auth-name" type="text" placeholder="Dra. Ana Souza" class="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3.5 text-sm focus:outline-none focus:border-roos-primary focus:ring-2 focus:ring-roos-primary/20">
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">E-mail</label>
+                    <input id="auth-email" type="email" placeholder="voce@escritorio.com" class="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3.5 text-sm focus:outline-none focus:border-roos-primary focus:ring-2 focus:ring-roos-primary/20">
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-xs font-semibold text-slate-600 mb-1.5">Senha</label>
+                    <input id="auth-password" type="password" placeholder="••••••••" class="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-3.5 text-sm focus:outline-none focus:border-roos-primary focus:ring-2 focus:ring-roos-primary/20">
+                </div>
+
+                <button id="auth-submit-btn" onclick="handleAuthSubmit()" class="w-full bg-roos-primary hover:bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold shadow-soft transition-colors flex items-center justify-center gap-2">
+                    <span id="auth-submit-label">Entrar</span>
+                </button>
+
+                <p class="text-xs text-center text-slate-500 mt-5">
+                    <span id="auth-toggle-text">Ainda não tem conta?</span>
+                    <button onclick="toggleAuthMode()" id="auth-toggle-btn" class="text-roos-primary font-semibold hover:underline">Criar conta</button>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tela de Paywall (trial expirado, sem assinatura ativa) -->
+    <div id="paywall-screen" class="hidden fixed inset-0 z-50 w-full h-full flex items-center justify-center bg-roos-dark/95 backdrop-blur-sm p-6">
+        <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 sm:p-8 text-center">
+            <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-roos-primary/10 text-roos-primary mb-4">
+                <i class="ph-fill ph-lock-key text-2xl"></i>
+            </div>
+            <h1 class="text-xl font-bold text-slate-800 mb-2">Seu período de teste terminou</h1>
+            <p class="text-sm text-slate-500 mb-6">Assine o RooS Pro para continuar resumindo documentos com IA.</p>
+            <button id="checkout-btn" onclick="startCheckout()" class="w-full bg-roos-primary hover:bg-blue-600 text-white py-3 rounded-xl text-sm font-semibold shadow-soft transition-colors">
+                Assinar agora
+            </button>
+            <button onclick="handleSignOut()" class="w-full text-xs text-slate-400 hover:text-slate-600 mt-4">Sair da conta</button>
+        </div>
+    </div>
+
+    <!-- Aviso de trial ativo (fixo no topo, some quando o plano vira "active") -->
+    <div id="trial-banner" class="hidden fixed top-0 left-0 right-0 z-40 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs sm:text-sm px-4 sm:px-8 py-2 flex items-center justify-center gap-3 shadow-sm">
+        <span>⏳ Seu período de teste termina em <strong id="trial-days-left">14</strong> dia(s).</span>
+        <button onclick="startCheckout()" class="shrink-0 bg-amber-800 hover:bg-amber-900 text-white text-xs font-semibold px-3 py-1 rounded-lg transition-colors">Assinar agora</button>
+    </div>
+
+    <!-- App (visível somente após login) -->
+    <div id="app-shell" class="hidden w-full h-full flex">
+
+    <!-- Sidebar Esquerda -->
+    <aside class="w-[260px] bg-roos-dark text-slate-300 h-full flex-col hidden lg:flex border-r border-slate-800 relative z-30 transition-all duration-300 shadow-xl shadow-black/10">
+        
+        <!-- Logo -->
+        <div class="h-16 flex items-center px-6 border-b border-white/5">
+            <div class="flex items-center gap-2 text-white font-bold text-xl tracking-tight cursor-pointer hover:opacity-90 transition-opacity">
+                <i class="ph-fill ph-scales text-roos-accent text-2xl drop-shadow-[0_0_8px_rgba(245,158,11,0.4)]"></i>
+                <span>RooS <span class="text-roos-primary">OS</span></span>
+            </div>
+        </div>
+
+        <!-- Menu de Navegação -->
+        <nav class="flex-1 overflow-y-auto py-6 px-4 space-y-1.5">
+            <p class="px-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Principal</p>
+            
+            <!-- Link Dashboard -->
+            <a href="#" onclick="switchView('view-dashboard', this)" class="nav-link flex items-center justify-between px-3 py-2.5 rounded-lg bg-gradient-to-r from-roos-primary/10 to-transparent text-white transition-colors group border border-roos-primary/20 shadow-[inset_2px_0_0_0_rgba(14,165,233,1)]">
+                <div class="flex items-center gap-3">
+                    <i class="ph-fill ph-squares-four text-xl text-roos-primary nav-icon"></i>
+                    <span class="font-medium text-sm">Dashboard</span>
+                </div>
+            </a>
+            
+            <!-- Link RooS Assistent -->
+            <a href="#" onclick="switchView('view-assistant', this)" class="nav-link flex items-center justify-between px-3 py-2.5 rounded-lg text-slate-400 hover:bg-white/5 hover:text-white transition-all duration-200 group border border-transparent">
+                <div class="flex items-center gap-3">
+                    <i class="ph ph-magic-wand text-xl group-hover:text-roos-primary transition-colors nav-icon"></i>
+                    <span class="font-medium text-sm">RooS Assistent</span>
+                </div>
+                <div class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 text-[10px] font-bold group-hover:bg-roos-primary/20 group-hover:text-roos-primary transition-colors">IA</div>
+            </a>
+            
+            <!-- Link Meus Documentos -->
+            <a href="#" onclick="switchView('view-cases', this); loadDocumentsHistory();" class="nav-link flex items-center justify-between px-3 py-2.5 rounded-lg text-slate-400 hover:bg-white/5 hover:text-white transition-all duration-200 group border border-transparent">
+                <div class="flex items-center gap-3">
+                    <i class="ph ph-folder-open text-xl group-hover:text-roos-primary transition-colors nav-icon"></i>
+                    <span class="font-medium text-sm">Meus Documentos</span>
+                </div>
+            </a>
+            
+            <!-- Link Modelos de Peças -->
+            <a href="#" onclick="switchView('view-templates', this)" class="nav-link flex items-center justify-between px-3 py-2.5 rounded-lg text-slate-400 hover:bg-white/5 hover:text-white transition-all duration-200 group border border-transparent">
+                <div class="flex items-center gap-3">
+                    <i class="ph ph-file-text text-xl group-hover:text-roos-primary transition-colors nav-icon"></i>
+                    <span class="font-medium text-sm">Modelos de Peças</span>
+                </div>
+                <div class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-500 text-[9px] font-bold">EM BREVE</div>
+            </a>
+        </nav>
+
+        <!-- Configurações e Perfil -->
+        <div class="p-4 border-t border-white/5 space-y-3 bg-roos-darker/30">
+            <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 hover:text-white transition-colors text-sm text-slate-400">
+                <i class="ph ph-gear text-lg"></i> Configurações
+            </a>
+            <a href="#" onclick="handleSignOut()" class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/5 hover:text-rose-400 transition-colors text-sm text-slate-400">
+                <i class="ph ph-sign-out text-lg"></i> Sair
+            </a>
+            
+            <!-- Card de Perfil -->
+            <div class="flex items-center gap-3 p-2.5 rounded-xl border border-white/5 bg-white/5 cursor-pointer hover:bg-white/10 hover:border-white/10 transition-all duration-200 group">
+                <div id="user-avatar" class="w-9 h-9 rounded-full bg-gradient-to-br from-roos-primary to-blue-700 flex items-center justify-center text-white font-bold text-sm shadow-md ring-2 ring-transparent group-hover:ring-roos-primary/50 transition-all">
+                    --
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p id="user-name" class="text-sm font-semibold text-white truncate">Sua conta</p>
+                    <p id="user-plan" class="text-xs text-slate-400 truncate group-hover:text-roos-primary/80 transition-colors">Sem plano ativo</p>
+                </div>
+                <i class="ph-bold ph-caret-right text-slate-500 group-hover:translate-x-0.5 transition-transform"></i>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ====================================================================== -->
+    <!-- APP CONTAINER (Roteamento Visual) -->
+    <!-- ====================================================================== -->
+    <div id="app-container" class="flex-1 flex overflow-hidden relative bg-mesh">
+
+        <!-- ====================================================================== -->
+        <!-- VIEW 1: DASHBOARD (Ativa por padrão) -->
+        <!-- ====================================================================== -->
+        <div id="view-dashboard" class="view-section flex w-full h-full animate-fade-in-up">
+            
+            <!-- Área Central (Dashboard) -->
+            <main class="flex-1 flex flex-col h-full relative min-w-0 z-10">
+                <!-- Header Mobile -->
+                <header class="lg:hidden h-16 flex items-center justify-between px-4 border-b border-slate-200/50 bg-white/80 backdrop-blur-md sticky top-0 z-20">
+                    <button class="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors">
+                        <i class="ph ph-list text-2xl"></i>
+                    </button>
+                    <div class="font-bold text-lg flex items-center gap-1.5">
+                        <i class="ph-fill ph-scales text-roos-accent"></i>
+                        <span class="text-slate-800">RooS <span class="text-roos-primary">OS</span></span>
+                    </div>
+                    <button class="p-2 text-slate-500 hover:bg-slate-100 hover:text-roos-primary rounded-lg transition-colors" onclick="toggleRightPanel()">
+                        <i class="ph ph-bell text-2xl"></i>
+                    </button>
+                </header>
+
+                <!-- Topbar Desktop Glassmorphism -->
+                <header class="hidden lg:flex h-[72px] items-center justify-between px-8 border-b border-slate-200/50 bg-white/70 backdrop-blur-xl sticky top-0 z-20">
+                    <h1 class="text-xl font-bold text-slate-800 flex items-center gap-2.5 tracking-tight">
+                        Visão Geral
+                    </h1>
+                    <div class="flex items-center gap-4">
+                        <div class="relative hidden md:block w-64">
+                            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg"></i>
+                            <input type="text" placeholder="Buscar cliente, processo..." class="w-full bg-white border border-slate-200 rounded-full py-1.5 pl-10 pr-4 text-sm focus:outline-none focus:border-roos-primary focus:ring-2 focus:ring-roos-primary/20 transition-all shadow-sm placeholder-slate-400">
+                        </div>
+                        <div class="w-px h-6 bg-slate-200 mx-1"></div>
+                        <button class="panel-toggle-btn relative p-2 text-slate-500 hover:bg-roos-primary/10 hover:text-roos-primary rounded-xl transition-colors focus:outline-none" onclick="toggleRightPanel()" title="Notificações e Agenda">
+                            <i class="ph ph-bell text-2xl"></i>
+                            <span class="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white"></span>
+                        </button>
+                    </div>
+                </header>
+
+                <!-- Conteúdo Rolável do Dashboard -->
+                <div class="flex-1 overflow-y-auto p-4 lg:p-8 space-y-6 lg:space-y-8">
+                    
+                    <!-- Welcome Banner -->
+                    <div class="bg-gradient-to-r from-roos-dark to-slate-800 rounded-2xl p-6 lg:p-8 text-white shadow-lg relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
+                        <div class="absolute right-0 top-0 w-64 h-64 bg-roos-primary/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
+                        
+                        <div class="relative z-10 flex-1">
+                            <div class="flex items-center gap-2 mb-2">
+                                <i class="ph-fill ph-magic-wand text-roos-accent text-xl"></i>
+                                <span class="text-roos-accent text-sm font-semibold tracking-wide uppercase">Comece por aqui</span>
+                            </div>
+                            <h2 class="text-2xl lg:text-3xl font-bold mb-2">Bem-vindo ao RooS.</h2>
+                            <p class="text-slate-300 text-sm lg:text-base max-w-2xl leading-relaxed">
+                                Envie uma petição ou documento para o RooS Assistent e receba um resumo gerado por IA com os pontos principais, em segundos.
+                            </p>
+                        </div>
+                        
+                        <div class="relative z-10 w-full md:w-auto">
+                            <button onclick="document.querySelectorAll('nav a')[1].click()" class="w-full md:w-auto bg-white text-slate-900 px-6 py-3 rounded-xl font-semibold shadow-soft hover:shadow-lg hover:-translate-y-0.5 hover:bg-slate-50 transition-all duration-300 flex items-center justify-center gap-2">
+                                <i class="ph-bold ph-chat-teardrop-text text-roos-primary text-lg"></i>
+                                Abrir RooS Assistent
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Primeiros Passos -->
+                    <div class="bg-white rounded-2xl border border-slate-200/60 shadow-sm p-6 delay-100">
+                        <h3 class="font-bold text-slate-800 text-lg mb-4 flex items-center gap-2"><i class="ph-fill ph-rocket-launch text-roos-primary"></i>Primeiros passos</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                                <div class="w-7 h-7 shrink-0 rounded-full bg-roos-primary text-white text-xs font-bold flex items-center justify-center">1</div>
+                                <div>
+                                    <p class="text-sm font-semibold text-slate-800 mb-1">Envie um documento</p>
+                                    <p class="text-xs text-slate-500">Anexe uma petição em PDF no RooS Assistent.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                                <div class="w-7 h-7 shrink-0 rounded-full bg-slate-300 text-white text-xs font-bold flex items-center justify-center">2</div>
+                                <div>
+                                    <p class="text-sm font-semibold text-slate-800 mb-1">Receba o resumo</p>
+                                    <p class="text-xs text-slate-500">A IA extrai fatos, pedidos e prazos automaticamente.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-3 p-4 rounded-xl bg-slate-50 border border-slate-100">
+                                <div class="w-7 h-7 shrink-0 rounded-full bg-slate-300 text-white text-xs font-bold flex items-center justify-center">3</div>
+                                <div>
+                                    <p class="text-sm font-semibold text-slate-800 mb-1">Revise e use</p>
+                                    <p class="text-xs text-slate-500">Sempre confira antes de usar em uma peça real.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Layout Dividido -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 pb-8 delay-200">
+                        <!-- Andamentos -->
+                        <div class="lg:col-span-2 space-y-4">
+                            <div class="flex items-center justify-between">
+                                <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2"><i class="ph-fill ph-list-dashes text-roos-primary"></i>Andamentos Recentes</h3>
+                            </div>
+                            <div class="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+                                <div class="p-10 flex flex-col items-center justify-center text-center">
+                                    <div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-3 text-slate-300">
+                                        <i class="ph-fill ph-list-dashes text-2xl"></i>
+                                    </div>
+                                    <p class="text-sm font-semibold text-slate-700 mb-1">Nenhum andamento ainda</p>
+                                    <p class="text-xs text-slate-500 max-w-xs">Assim que você resumir seu primeiro documento, ele vai aparecer aqui.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Ações Rápidas -->
+                        <div class="space-y-4">
+                            <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2"><i class="ph-fill ph-lightning text-roos-accent"></i>Ações Rápidas</h3>
+                            <div class="grid grid-cols-1 gap-3">
+                                <button onclick="document.querySelectorAll('nav a')[1].click()" class="bg-white border border-slate-200/60 p-4 rounded-xl shadow-soft hover:shadow-md hover:border-roos-primary/40 transition-all flex items-center gap-4 text-left group">
+                                    <div class="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-roos-primary group-hover:text-white transition-colors"><i class="ph ph-file-pdf text-xl"></i></div>
+                                    <div>
+                                        <h4 class="font-semibold text-slate-800 text-sm group-hover:text-roos-primary transition-colors">Resumir Documento</h4>
+                                        <p class="text-[11px] text-slate-500 mt-0.5">Extraia os pontos chave de um PDF.</p>
+                                    </div>
+                                </button>
+                                <button disabled class="bg-white border border-slate-200/60 p-4 rounded-xl flex items-center gap-4 text-left opacity-50 cursor-not-allowed">
+                                    <div class="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="ph ph-pen-nib text-xl"></i></div>
+                                    <div>
+                                        <h4 class="font-semibold text-slate-800 text-sm">Nova Petição</h4>
+                                        <p class="text-[11px] text-slate-500 mt-0.5">Em breve.</p>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Painel Direito Ocultável (Agenda) -->
+            <aside class="context-panel w-80 bg-white border-l border-slate-200 flex-col transition-all duration-300 translate-x-0 hidden lg:flex relative z-30 shadow-[-10px_0_30px_rgba(0,0,0,0.03)]">
+                <div class="h-[72px] flex items-center justify-between px-6 border-b border-slate-200/50 bg-white/80 backdrop-blur-sm sticky top-0">
+                    <h2 class="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                        <i class="ph-fill ph-calendar text-slate-400 text-lg"></i> Agenda e Prazos
+                    </h2>
+                    <button onclick="toggleRightPanel()" class="text-slate-400 hover:text-slate-700 rounded-lg p-1.5 hover:bg-slate-100 transition-colors lg:hidden"><i class="ph-bold ph-x"></i></button>
+                </div>
+                <div class="flex-1 overflow-y-auto p-6 hide-scroll">
+                    <div class="mb-8">
+                        <h3 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4">Para Hoje</h3>
+                        <div class="flex flex-col items-center text-center py-8">
+                            <div class="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-3 text-slate-300">
+                                <i class="ph-fill ph-calendar-check text-2xl"></i>
+                            </div>
+                            <p class="text-xs font-semibold text-slate-600 mb-1">Nenhum prazo cadastrado</p>
+                            <p class="text-[11px] text-slate-400">Essa área será liberada em breve.</p>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+
+        <!-- ====================================================================== -->
+        <!-- VIEW 2: ROOS ASSISTENT (CHAT IA) -->
+        <!-- ====================================================================== -->
+        <div id="view-assistant" class="view-section hidden w-full h-full bg-slate-50">
+            <!-- Área do Chat -->
+            <main class="flex-1 flex flex-col h-full relative min-w-0 z-10">
+                
+                <!-- Header do Assistent -->
+                <header class="h-[72px] flex items-center justify-between px-6 lg:px-8 border-b border-slate-200 bg-white/80 backdrop-blur-xl sticky top-0 z-20">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-roos-primary to-blue-600 flex items-center justify-center shadow-lg shadow-roos-primary/20">
+                            <i class="ph-fill ph-magic-wand text-white text-xl"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-lg font-bold text-slate-800 tracking-tight leading-tight">RooS Assistent</h1>
+                            <p class="text-xs text-slate-500 font-medium">Seu Copiloto Jurídico Baseado em IA</p>
+                        </div>
+                    </div>
+                    <button class="panel-toggle-btn text-slate-500 hover:bg-slate-100 hover:text-roos-primary p-2 rounded-xl transition-colors" onclick="toggleRightPanel()" title="Ver Contexto">
+                        <i class="ph ph-sidebar-simple text-2xl"></i>
+                    </button>
+                </header>
+
+                <!-- Histórico / Empty State (Área de rolagem principal) -->
+                <div id="chat-scroll-area" class="flex-1 overflow-y-auto p-4 lg:p-8 flex flex-col">
+                    
+                    <div id="chat-empty-state" class="max-w-2xl w-full mx-auto my-auto text-center space-y-8 animate-fade-in-up">
+                        <!-- Saída/Logo Animada -->
+                        <div class="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white border border-slate-200 shadow-xl shadow-roos-primary/10 relative">
+                            <div class="absolute inset-0 bg-roos-primary/5 rounded-2xl animate-ping opacity-75"></div>
+                            <i class="ph-fill ph-scales text-4xl text-roos-primary relative z-10"></i>
+                        </div>
+                        
+                        <div>
+                            <h2 class="text-2xl font-bold text-slate-800 mb-2">Como posso adiantar seu trabalho hoje?</h2>
+                            <p class="text-slate-500 text-sm">Selecione uma ação rápida ou digite o que você precisa abaixo.</p>
+                        </div>
+
+                        <!-- Grid de Sugestões de Prompts -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
+                            <button onclick="fillPrompt('Resuma a contestação anexada e liste 3 pontos fracos da defesa.')" class="bg-white border border-slate-200 p-4 rounded-xl shadow-sm hover:shadow-md hover:border-roos-primary/40 transition-all group">
+                                <i class="ph ph-file-magnifying-glass text-2xl text-blue-500 mb-3 group-hover:scale-110 transition-transform"></i>
+                                <h3 class="text-sm font-bold text-slate-800 mb-1">Analisar Processo</h3>
+                                <p class="text-xs text-slate-500 line-clamp-2">"Resuma a contestação anexada e liste 3 pontos fracos da defesa."</p>
+                            </button>
+                            
+                            <button onclick="fillPrompt('Crie uma inicial de dano moral por voo cancelado da Latam.')" class="bg-white border border-slate-200 p-4 rounded-xl shadow-sm hover:shadow-md hover:border-emerald-500/40 transition-all group">
+                                <i class="ph ph-pen-nib text-2xl text-emerald-500 mb-3 group-hover:scale-110 transition-transform"></i>
+                                <h3 class="text-sm font-bold text-slate-800 mb-1">Redigir Petição</h3>
+                                <p class="text-xs text-slate-500 line-clamp-2">"Crie uma inicial de dano moral por voo cancelado da Latam."</p>
+                            </button>
+                            
+                            <button onclick="fillPrompt('Traduza o andamento &quot;Conclusos para Decisão&quot; para o WhatsApp.')" class="bg-white border border-slate-200 p-4 rounded-xl shadow-sm hover:shadow-md hover:border-amber-500/40 transition-all group">
+                                <i class="ph ph-whatsapp-logo text-2xl text-amber-500 mb-3 group-hover:scale-110 transition-transform"></i>
+                                <h3 class="text-sm font-bold text-slate-800 mb-1">Explicar p/ Cliente</h3>
+                                <p class="text-xs text-slate-500 line-clamp-2">"Traduza o andamento 'Conclusos para Decisão' para o WhatsApp."</p>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="chat-messages" class="hidden w-full max-w-3xl mx-auto space-y-5 py-4"></div>
+                </div>
+
+                <!-- Input Footer (A Caixa de Digitação) -->
+                <div class="p-4 bg-white/60 backdrop-blur-md border-t border-slate-200/60 z-20">
+                    <div class="max-w-4xl mx-auto">
+                        <div id="file-chip-row" class="hidden flex-wrap gap-2 mb-2"></div>
+                        <div class="relative flex items-end bg-white border border-slate-300 rounded-2xl shadow-sm focus-within:border-roos-primary focus-within:ring-2 focus-within:ring-roos-primary/20 transition-all p-1.5">
+                            <input type="file" id="file-input" accept=".pdf,.doc,.docx" class="hidden" onchange="handleFileAttach(event)">
+                            <button onclick="document.getElementById('file-input').click()" class="p-2.5 text-slate-400 hover:text-roos-primary hover:bg-roos-primary/10 rounded-xl transition-colors shrink-0" title="Anexar PDF ou Documento">
+                                <i class="ph ph-paperclip text-xl"></i>
+                            </button>
+                            
+                            <textarea id="chat-input" placeholder="Descreva o que você precisa ou cole um andamento aqui..." class="flex-1 max-h-40 min-h-[44px] bg-transparent border-none focus:ring-0 resize-none py-2.5 px-3 text-sm text-slate-700 placeholder-slate-400 hide-scroll outline-none" rows="1" onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendMessage();}"></textarea>
+                            
+                            <button id="send-btn" onclick="sendMessage()" class="p-2.5 bg-slate-900 text-white rounded-xl hover:bg-roos-primary transition-colors shadow-md ml-2 shrink-0 flex items-center justify-center">
+                                <i class="ph-bold ph-arrow-up text-lg"></i>
+                            </button>
+                        </div>
+                        <p class="text-[10px] text-center text-slate-400 mt-2 font-medium">O RooS Assistent pode cometer erros. Sempre revise as peças jurídicas antes do protocolo.</p>
+                    </div>
+                </div>
+            </main>
+
+            <!-- Painel Direito (Contexto do Chat) -->
+            <aside class="context-panel w-80 bg-white border-l border-slate-200 flex-col transition-all duration-300 translate-x-0 hidden lg:flex relative z-30 shadow-[-10px_0_30px_rgba(0,0,0,0.03)]">
+                <div class="h-[72px] flex items-center justify-between px-6 border-b border-slate-200/50 bg-slate-50/80 backdrop-blur-sm sticky top-0">
+                    <h2 class="font-semibold text-slate-800 text-sm flex items-center gap-2">
+                        <i class="ph-fill ph-folder-notch-open text-slate-400 text-lg"></i> Contexto Atual
+                    </h2>
+                </div>
+                <div id="context-panel-content" class="flex-1 overflow-y-auto p-6 flex flex-col items-center justify-center text-center">
+                    <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4 text-slate-300">
+                        <i class="ph-fill ph-files text-3xl"></i>
+                    </div>
+                    <p class="text-sm font-semibold text-slate-700 mb-1">Nenhum documento</p>
+                    <p class="text-xs text-slate-500">As peças e análises geradas nesta sessão aparecerão aqui para edição.</p>
+                </div>
+            </aside>
+        </div>
+
+
+        <!-- ====================================================================== -->
+        <!-- VIEW 3: MEUS CASOS -->
+        <!-- ====================================================================== -->
+        <div id="view-cases" class="view-section hidden w-full h-full bg-slate-50/50">
+             <main class="flex-1 flex flex-col h-full relative min-w-0 z-10 overflow-y-auto p-6 lg:p-8 animate-fade-in-up">
+                 
+                 <!-- Header Simples -->
+                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                     <div>
+                         <h1 class="text-2xl font-bold text-slate-800">Meus Documentos</h1>
+                         <p class="text-sm text-slate-500 mt-1">Documentos enviados ao RooS Assistent e os resumos gerados pela IA.</p>
+                     </div>
+                 </div>
+
+                 <div id="documents-history-container" class="flex-1">
+                     <div class="flex flex-col items-center justify-center text-center py-20 bg-white border border-dashed border-slate-200 rounded-2xl">
+                         <p class="text-sm font-semibold text-slate-500">Carregando...</p>
+                     </div>
+                 </div>
+             </main>
+        </div>
+
+        <!-- ====================================================================== -->
+        <!-- VIEW 4: MODELOS DE PEÇAS -->
+        <!-- ====================================================================== -->
+        <div id="view-templates" class="view-section hidden w-full h-full bg-slate-50/50">
+             <main class="flex-1 flex flex-col h-full relative min-w-0 z-10 overflow-y-auto p-6 lg:p-8 animate-fade-in-up">
+                 
+                 <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+                     <div>
+                         <h1 class="text-2xl font-bold text-slate-800">Modelos de Peças Inteligentes</h1>
+                         <p class="text-sm text-slate-500 mt-1">Essa área está em desenvolvimento e será liberada em breve.</p>
+                     </div>
+                 </div>
+
+                 <div class="flex-1 flex flex-col items-center justify-center text-center py-20 bg-white border border-dashed border-slate-200 rounded-2xl">
+                     <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4 text-slate-300">
+                         <i class="ph-fill ph-file-text text-3xl"></i>
+                     </div>
+                     <p class="text-sm font-semibold text-slate-700 mb-1">Modelos de peças em breve</p>
+                     <p class="text-xs text-slate-500 max-w-sm">Por enquanto, use o RooS Assistent para resumir documentos. A geração de peças completas chega na próxima fase.</p>
+                     <button onclick="document.querySelectorAll('nav a')[1].click()" class="mt-5 bg-roos-primary hover:bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-soft transition-colors">
+                         Abrir RooS Assistent
+                     </button>
+                 </div>
+             </main>
+        </div>
+
+    </div>
+    </div><!-- fecha #app-shell -->
+
+    <!-- ====================================================================== -->
+    <!-- SCRIPTS DA INTERFACE -->
+    <!-- ====================================================================== -->
+    <script>
+        // ---------------------------------------------------
+        // 0. CONFIGURAÇÃO DO SUPABASE (Fase 0 - Fundação)
+        // ---------------------------------------------------
+        // Cole aqui a URL e a chave "anon public" do seu projeto Supabase
+        // (Painel do Supabase > Project Settings > API). A chave "anon" é
+        // segura para ficar no front-end — ela só tem os poderes que as
+        // políticas de RLS permitirem no banco (veja o schema.sql).
+        const SUPABASE_URL = 'https://rvuwwpjbxleuousjhabx.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_HDzTskNEmIggjJAN9chRlw_0638U7JE';
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let currentUser = null;
+        let isSignUpMode = false;
+
+        function toggleAuthMode() {
+            isSignUpMode = !isSignUpMode;
+            document.getElementById('auth-title').textContent = isSignUpMode ? 'Criar sua conta' : 'Entrar na sua conta';
+            document.getElementById('auth-subtitle').textContent = isSignUpMode ? 'Leva menos de um minuto.' : 'Acesse o RooS com seu e-mail e senha.';
+            document.getElementById('auth-name-field').classList.toggle('hidden', !isSignUpMode);
+            document.getElementById('auth-submit-label').textContent = isSignUpMode ? 'Criar conta' : 'Entrar';
+            document.getElementById('auth-toggle-text').textContent = isSignUpMode ? 'Já tem conta?' : 'Ainda não tem conta?';
+            document.getElementById('auth-toggle-btn').textContent = isSignUpMode ? 'Entrar' : 'Criar conta';
+            hideAuthError();
+        }
+
+        function showAuthError(message) {
+            const el = document.getElementById('auth-error');
+            el.textContent = message;
+            el.classList.remove('hidden');
+        }
+
+        function hideAuthError() {
+            document.getElementById('auth-error').classList.add('hidden');
+        }
+
+        async function handleAuthSubmit() {
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value;
+            const fullName = document.getElementById('auth-name').value.trim();
+            hideAuthError();
+
+            if (!email || !password) {
+                showAuthError('Preencha e-mail e senha.');
+                return;
+            }
+
+            const btn = document.getElementById('auth-submit-btn');
+            btn.disabled = true;
+
+            try {
+                if (isSignUpMode) {
+                    const { error } = await supabaseClient.auth.signUp({
+                        email, password,
+                        options: { data: { full_name: fullName } }
+                    });
+                    if (error) throw error;
+                    showAuthError('Conta criada! Verifique seu e-mail para confirmar o cadastro.');
+                } else {
+                    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                    if (error) throw error;
+                }
+            } catch (err) {
+                showAuthError(err.message || 'Não foi possível continuar. Tente novamente.');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function handleSignOut() {
+            await supabaseClient.auth.signOut();
+        }
+
+        let userProfile = null;
+
+        function showApp(session) {
+            currentUser = session.user;
+            document.getElementById('auth-screen').classList.add('hidden');
+            document.getElementById('app-shell').classList.remove('hidden');
+
+            const name = currentUser.user_metadata?.full_name || currentUser.email;
+            document.getElementById('user-name').textContent = name;
+            document.getElementById('user-plan').textContent = currentUser.email;
+            document.getElementById('user-avatar').textContent = name.slice(0, 2).toUpperCase();
+
+            loadUserProfile();
+        }
+
+        function showAuthScreen() {
+            currentUser = null;
+            userProfile = null;
+            document.getElementById('app-shell').classList.add('hidden');
+            document.getElementById('paywall-screen').classList.add('hidden');
+            document.getElementById('trial-banner').classList.add('hidden');
+            document.getElementById('auth-screen').classList.remove('hidden');
+        }
+
+        async function loadUserProfile() {
+            const { data: profile, error } = await supabaseClient
+                .from('profiles')
+                .select('plan, trial_ends_at')
+                .eq('id', currentUser.id)
+                .single();
+
+            if (error || !profile) return;
+            userProfile = profile;
+
+            const trialEndsAt = profile.trial_ends_at ? new Date(profile.trial_ends_at) : null;
+            const isActive = profile.plan === 'active';
+            const isTrialValid = profile.plan === 'trial' && trialEndsAt && trialEndsAt > new Date();
+
+            if (isActive) {
+                document.getElementById('paywall-screen').classList.add('hidden');
+                document.getElementById('trial-banner').classList.add('hidden');
+            } else if (isTrialValid) {
+                document.getElementById('paywall-screen').classList.add('hidden');
+                const daysLeft = Math.max(0, Math.ceil((trialEndsAt - new Date()) / (1000 * 60 * 60 * 24)));
+                document.getElementById('trial-days-left').textContent = daysLeft;
+                document.getElementById('trial-banner').classList.remove('hidden');
+            } else {
+                document.getElementById('trial-banner').classList.add('hidden');
+                document.getElementById('paywall-screen').classList.remove('hidden');
+            }
+        }
+
+        async function startCheckout() {
+            const btn = document.getElementById('checkout-btn');
+            if (btn) { btn.disabled = true; btn.textContent = 'Redirecionando...'; }
+
+            const baseUrl = window.location.origin + window.location.pathname;
+            try {
+                const { data, error } = await supabaseClient.functions.invoke('create-checkout-session', {
+                    body: {
+                        success_url: baseUrl + '?checkout=success',
+                        cancel_url: baseUrl + '?checkout=cancel',
+                    }
+                });
+                if (error) throw error;
+                if (data?.url) {
+                    window.location.href = data.url;
+                } else {
+                    throw new Error('Não recebi o link de pagamento.');
+                }
+            } catch (err) {
+                alert('Não consegui iniciar o pagamento: ' + (err.message || 'erro desconhecido'));
+                if (btn) { btn.disabled = false; btn.textContent = 'Assinar agora'; }
+            }
+        }
+
+        function checkCheckoutReturn() {
+            const params = new URLSearchParams(window.location.search);
+            const status = params.get('checkout');
+            if (status === 'success') {
+                setTimeout(() => alert('Pagamento confirmado! Bem-vindo ao RooS Pro.'), 400);
+            } else if (status === 'cancel') {
+                setTimeout(() => alert('Pagamento cancelado — você pode tentar de novo quando quiser.'), 400);
+            }
+            if (status) {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('checkout');
+                window.history.replaceState({}, '', url.toString());
+            }
+        }
+        checkCheckoutReturn();
+
+        supabaseClient.auth.onAuthStateChange((_event, session) => {
+            if (session) {
+                showApp(session);
+            } else {
+                showAuthScreen();
+            }
+        });
+
+        supabaseClient.auth.getSession().then(({ data: { session } }) => {
+            if (session) showApp(session);
+        });
+
+        // ---------------------------------------------------
+        // 1. SISTEMA DE ROTEAMENTO (SPA - Troca de Telas)
+        // ---------------------------------------------------
+        function switchView(targetViewId, clickedElement) {
+            
+            // 1. Oculta todas as telas
+            document.querySelectorAll('.view-section').forEach(view => {
+                view.classList.add('hidden');
+                view.classList.remove('flex', 'animate-fade-in-up');
+            });
+            
+            // 2. Mostra a tela clicada com animação
+            const targetView = document.getElementById(targetViewId);
+            if (targetView) {
+                targetView.classList.remove('hidden');
+                // Pequeno delay na animação para dar o recarregamento suave
+                setTimeout(() => {
+                    targetView.classList.add('flex', 'animate-fade-in-up');
+                }, 10);
+            }
+
+            // 3. Atualiza o visual dos botões no Menu (Remove o 'Ativo' de todos)
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('bg-gradient-to-r', 'from-roos-primary/10', 'to-transparent', 'text-white', 'border-roos-primary/20', 'shadow-[inset_2px_0_0_0_rgba(14,165,233,1)]');
+                link.classList.add('text-slate-400', 'border-transparent');
+                
+                // Volta os ícones para outline (linha fina)
+                const icon = link.querySelector('.nav-icon');
+                if(icon) {
+                    icon.classList.remove('ph-fill', 'text-roos-primary');
+                    icon.classList.add('ph');
+                }
+            });
+
+            // 4. Adiciona o estilo 'Ativo' apenas no link clicado
+            if (clickedElement) {
+                clickedElement.classList.add('bg-gradient-to-r', 'from-roos-primary/10', 'to-transparent', 'text-white', 'border-roos-primary/20', 'shadow-[inset_2px_0_0_0_rgba(14,165,233,1)]');
+                clickedElement.classList.remove('text-slate-400', 'border-transparent');
+                
+                // Preenche o ícone
+                const activeIcon = clickedElement.querySelector('.nav-icon');
+                if(activeIcon) {
+                    activeIcon.classList.remove('ph');
+                    activeIcon.classList.add('ph-fill', 'text-roos-primary');
+                }
+            }
+        }
+
+        // ---------------------------------------------------
+        // 2. LÓGICA DO PAINEL DIREITO (Contexto / Agenda)
+        // ---------------------------------------------------
+        function toggleRightPanel() {
+            // Busca apenas o painel da tela que está aberta no momento
+            const activeView = document.querySelector('.view-section:not(.hidden)');
+            if(!activeView) return;
+            
+            const panel = activeView.querySelector('.context-panel');
+            const btn = activeView.querySelector('.panel-toggle-btn');
+            
+            // Se a tela não tiver painel direito (ex: Meus Documentos), cancela
+            if(!panel) return;
+
+            if (window.innerWidth < 1024) {
+                // Comportamento no Celular (Desliza por cima)
+                if (panel.classList.contains('hidden')) {
+                    panel.classList.remove('hidden');
+                    setTimeout(() => {
+                        panel.classList.add('fixed', 'right-0', 'top-0', 'h-full', 'shadow-2xl', 'z-50');
+                        panel.classList.remove('translate-x-full');
+                    }, 10);
+                } else {
+                    panel.classList.add('translate-x-full');
+                    setTimeout(() => {
+                        panel.classList.add('hidden');
+                        panel.classList.remove('fixed', 'right-0', 'top-0', 'h-full', 'shadow-2xl', 'z-50');
+                    }, 300);
+                }
+            } else {
+                // Comportamento no Desktop (Empurra o conteúdo)
+                const isCurrentlyOpen = panel.classList.contains('flex');
+                
+                if (!isCurrentlyOpen) {
+                    // Abre o painel
+                    panel.classList.remove('w-0', 'border-none', 'opacity-0', 'hidden');
+                    panel.classList.add('w-80', 'opacity-100', 'flex');
+                    if(btn) {
+                        btn.classList.add('text-roos-primary', 'bg-roos-primary/10');
+                        btn.classList.remove('text-slate-500');
+                    }
+                } else {
+                    // Fecha o painel
+                    panel.classList.add('w-0', 'border-none', 'opacity-0');
+                    panel.classList.remove('w-80', 'opacity-100', 'flex');
+                    if(btn) {
+                        btn.classList.remove('text-roos-primary', 'bg-roos-primary/10');
+                        btn.classList.add('text-slate-500');
+                    }
+                    setTimeout(() => { panel.classList.add('hidden'); }, 300);
+                }
+            }
+        }
+
+        // Listener para fechar automaticamente se a tela encolher (Responsividade)
+        window.addEventListener('resize', () => {
+            const activeViews = document.querySelectorAll('.view-section');
+            activeViews.forEach(view => {
+                const panel = view.querySelector('.context-panel');
+                if(panel && window.innerWidth < 1024) {
+                    panel.classList.add('hidden', 'translate-x-full');
+                    panel.classList.remove('flex', 'fixed', 'right-0', 'top-0', 'shadow-2xl', 'z-50');
+                } else if(panel && window.innerWidth >= 1024 && !panel.classList.contains('w-0')) {
+                    // Se for desktop e não estivesse fechado manualmente, garante que mostre
+                    panel.classList.remove('hidden', 'fixed', 'right-0', 'top-0', 'shadow-2xl', 'z-50', 'translate-x-full');
+                    panel.classList.add('flex');
+                }
+            });
+        });
+
+        // ---------------------------------------------------
+        // 3. LÓGICA DO ROOS ASSISTENT (Chat)
+        // ---------------------------------------------------
+        let attachedFile = null;
+        let attachedDocumentId = null;
+        let isProcessingFile = false;
+
+        function fillPrompt(text) {
+            const input = document.getElementById('chat-input');
+            input.value = text;
+            input.focus();
+        }
+
+        function setSendLocked(locked) {
+            isProcessingFile = locked;
+            const sendBtn = document.getElementById('send-btn');
+            if (sendBtn) {
+                sendBtn.disabled = locked;
+                sendBtn.classList.toggle('opacity-50', locked);
+                sendBtn.classList.toggle('cursor-not-allowed', locked);
+            }
+        }
+
+        async function handleFileAttach(event) {
+            const file = event.target.files[0];
+            if (!file || !currentUser) return;
+            attachedFile = file;
+            attachedDocumentId = null;
+            setSendLocked(true);
+
+            // Mostra o chip do arquivo acima do campo de digitação
+            const chipRow = document.getElementById('file-chip-row');
+            chipRow.classList.remove('hidden');
+            chipRow.classList.add('flex');
+            chipRow.innerHTML = `
+                <div class="flex items-center gap-2 bg-blue-50 border border-blue-100 text-blue-700 text-xs font-medium pl-3 pr-2 py-1.5 rounded-full">
+                    <i class="ph-fill ph-file-pdf"></i>
+                    <span class="max-w-[180px] truncate">${file.name}</span>
+                    <button onclick="removeAttachedFile()" class="hover:bg-blue-100 rounded-full p-0.5"><i class="ph-bold ph-x text-[10px]"></i></button>
+                </div>
+            `;
+
+            // Atualiza o painel de contexto à direita
+            const contextPanel = document.getElementById('context-panel-content');
+            if (contextPanel) {
+                contextPanel.innerHTML = `
+                    <div class="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mb-4 text-roos-primary">
+                        <i class="ph-fill ph-file-pdf text-3xl"></i>
+                    </div>
+                    <p class="text-sm font-semibold text-slate-700 mb-1">${file.name}</p>
+                    <p id="context-panel-status" class="text-xs text-slate-500">Enviando para o banco de dados...</p>
+                `;
+            }
+
+            // Sobe o arquivo pro Storage, numa pasta exclusiva do usuário logado
+            // (a política de RLS do bucket exige que o primeiro nível da pasta seja o user_id)
+            const storagePath = `${currentUser.id}/${Date.now()}_${file.name}`;
+            const { error: uploadError } = await supabaseClient.storage
+                .from('documents')
+                .upload(storagePath, file);
+
+            const statusEl = document.getElementById('context-panel-status');
+
+            if (uploadError) {
+                if (statusEl) statusEl.textContent = 'Erro ao enviar o arquivo: ' + uploadError.message;
+                setSendLocked(false);
+                return;
+            }
+
+            // Registra o documento na tabela "documents" e guarda o id gerado.
+            // A IA vai ler o PDF inteiro direto do Storage (o texto não é extraído aqui) —
+            // funciona tanto para PDFs de texto quanto para digitalizados/escaneados.
+            const { data: docRow, error: dbError } = await supabaseClient.from('documents')
+                .insert({ user_id: currentUser.id, file_name: file.name, storage_path: storagePath })
+                .select()
+                .single();
+
+            if (dbError) {
+                if (statusEl) statusEl.textContent = 'Arquivo salvo, mas houve um erro ao registrar no banco: ' + dbError.message;
+                setSendLocked(false);
+                return;
+            }
+            attachedDocumentId = docRow.id;
+
+            if (statusEl) {
+                statusEl.textContent = 'Documento pronto (inclusive se for digitalizado). Envie uma mensagem (ex: "resuma") para o RooS Assistent analisar.';
+            }
+
+            setSendLocked(false);
+        }
+
+        function removeAttachedFile() {
+            attachedFile = null;
+            attachedDocumentId = null;
+            document.getElementById('file-input').value = '';
+            const chipRow = document.getElementById('file-chip-row');
+            chipRow.classList.add('hidden');
+            chipRow.innerHTML = '';
+        }
+
+        let conversationHistory = [];
+
+        async function sendMessage() {
+            if (isProcessingFile) return;
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if ((!text && !attachedFile) || !currentUser) return;
+
+            // Esconde o empty state e mostra a área de mensagens
+            document.getElementById('chat-empty-state').classList.add('hidden');
+            const messages = document.getElementById('chat-messages');
+            messages.classList.remove('hidden');
+            messages.classList.add('flex', 'flex-col');
+
+            const userText = text || `Resumir documento: ${attachedFile ? attachedFile.name : ''}`;
+            appendMessage('user', userText);
+            await supabaseClient.from('messages').insert({ user_id: currentUser.id, role: 'user', content: userText });
+
+            // Guarda o histórico ANTES de adicionar a mensagem atual (que já vai separada, em "message")
+            const historyToSend = conversationHistory.slice(-12);
+            conversationHistory.push({ role: 'user', content: userText });
+
+            input.value = '';
+            const documentId = attachedDocumentId;
+            removeAttachedFile();
+
+            // Indicador de "digitando"
+            const typingId = 'typing-' + Date.now();
+            appendMessage('assistant', '...', typingId);
+
+            try {
+                const { data, error } = await supabaseClient.functions.invoke('roos-assistant', {
+                    body: { message: text, document_id: documentId, history: historyToSend }
+                });
+
+                const typingEl = document.getElementById(typingId);
+                if (typingEl) typingEl.remove();
+
+                if (error) throw error;
+
+                const reply = data?.reply || 'Não consegui gerar uma resposta.';
+                appendMessage('assistant', reply);
+                await supabaseClient.from('messages').insert({ user_id: currentUser.id, role: 'assistant', content: reply });
+                conversationHistory.push({ role: 'assistant', content: reply });
+            } catch (err) {
+                const typingEl = document.getElementById(typingId);
+                if (typingEl) typingEl.remove();
+                appendMessage('assistant', 'Não consegui falar com o motor de IA agora. Detalhe técnico: ' + (err.message || 'erro desconhecido'));
+            }
+        }
+
+        function copyToClipboard(text, buttonEl) {
+            navigator.clipboard.writeText(text).then(() => {
+                if (!buttonEl) return;
+                const original = buttonEl.innerHTML;
+                buttonEl.innerHTML = '<i class="ph-bold ph-check"></i> Copiado!';
+                setTimeout(() => { buttonEl.innerHTML = original; }, 1500);
+            });
+        }
+
+        function appendMessage(role, text, id) {
+            const messages = document.getElementById('chat-messages');
+            const wrapper = document.createElement('div');
+            if (id) wrapper.id = id;
+
+            if (role === 'user') {
+                wrapper.className = 'self-end max-w-[80%] bg-slate-900 text-white text-sm rounded-2xl rounded-br-sm px-4 py-2.5';
+                wrapper.textContent = text;
+            } else {
+                wrapper.className = 'self-start max-w-[85%] flex flex-col gap-1';
+
+                const bubble = document.createElement('div');
+                bubble.className = 'bg-white border border-slate-200 text-slate-700 text-sm rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm prose prose-sm prose-slate max-w-none prose-headings:font-bold prose-headings:mt-3 prose-headings:mb-1.5 prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-0.5';
+                bubble.innerHTML = DOMPurify.sanitize(marked.parse(text));
+                wrapper.appendChild(bubble);
+
+                if (text !== '...') {
+                    const copyBtn = document.createElement('button');
+                    copyBtn.className = 'self-start flex items-center gap-1 text-[11px] text-slate-400 hover:text-roos-primary transition-colors px-1';
+                    copyBtn.innerHTML = '<i class="ph ph-copy"></i> Copiar';
+                    copyBtn.onclick = () => copyToClipboard(text, copyBtn);
+                    wrapper.appendChild(copyBtn);
+                }
+            }
+
+            messages.appendChild(wrapper);
+            const scrollArea = document.getElementById('chat-scroll-area');
+            scrollArea.scrollTop = scrollArea.scrollHeight;
+        }
+
+        // ---------------------------------------------------
+        // 4. HISTÓRICO DE DOCUMENTOS ("Meus Documentos")
+        // ---------------------------------------------------
+        function formatDate(isoString) {
+            const d = new Date(isoString);
+            return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) +
+                   ' às ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function toggleSummary(id) {
+            const el = document.getElementById(id);
+            if (el) el.classList.toggle('hidden');
+        }
+
+        async function loadDocumentsHistory() {
+            const container = document.getElementById('documents-history-container');
+            if (!container || !currentUser) return;
+
+            const { data: docs, error } = await supabaseClient
+                .from('documents')
+                .select('id, file_name, status, created_at, summaries(id, content, created_at)')
+                .eq('user_id', currentUser.id)
+                .order('created_at', { ascending: false });
+
+            if (error) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center text-center py-20 bg-white border border-dashed border-rose-200 rounded-2xl">
+                        <p class="text-sm font-semibold text-rose-600">Erro ao carregar documentos: ${error.message}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            if (!docs || docs.length === 0) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center text-center py-20 bg-white border border-dashed border-slate-200 rounded-2xl">
+                        <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4 text-slate-300">
+                            <i class="ph-fill ph-folder-open text-3xl"></i>
+                        </div>
+                        <p class="text-sm font-semibold text-slate-700 mb-1">Nenhum documento ainda</p>
+                        <p class="text-xs text-slate-500 max-w-sm">Envie um documento no RooS Assistent para vê-lo aqui, junto com o resumo gerado.</p>
+                        <button onclick="document.querySelectorAll('nav a')[1].click()" class="mt-5 bg-roos-primary hover:bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-soft transition-colors">
+                            Abrir RooS Assistent
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `<div class="grid grid-cols-1 gap-4">${docs.map((doc) => {
+                const summary = Array.isArray(doc.summaries) && doc.summaries.length > 0 ? doc.summaries[0] : null;
+                const summaryId = `summary-${doc.id}`;
+                const statusBadge = doc.status === 'resumido'
+                    ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">RESUMIDO</span>'
+                    : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">ENVIADO</span>';
+
+                return `
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+                        <div class="flex items-start justify-between gap-3 mb-2">
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="w-10 h-10 shrink-0 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center"><i class="ph-fill ph-file-pdf text-lg"></i></div>
+                                <div class="min-w-0">
+                                    <p class="text-sm font-bold text-slate-800 truncate">${doc.file_name}</p>
+                                    <p class="text-[11px] text-slate-400">${formatDate(doc.created_at)}</p>
+                                </div>
+                            </div>
+                            ${statusBadge}
+                        </div>
+                        ${summary ? `
+                            <div class="flex items-center gap-4 mt-2">
+                                <button onclick="toggleSummary('${summaryId}')" class="text-xs font-semibold text-roos-primary hover:text-blue-700 transition-colors">
+                                    Ver / ocultar resumo
+                                </button>
+                                <button data-copy-doc="${doc.id}" class="flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-roos-primary transition-colors">
+                                    <i class="ph ph-copy"></i> Copiar
+                                </button>
+                            </div>
+                            <div id="${summaryId}" class="hidden mt-3 pt-3 border-t border-slate-100 prose prose-sm prose-slate max-w-none prose-headings:font-bold prose-headings:mt-2 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-li:my-0.5">
+                                ${DOMPurify.sanitize(marked.parse(summary.content))}
+                            </div>
+                        ` : `
+                            <p class="text-xs text-slate-400 mt-2">Ainda sem resumo gerado para este documento.</p>
+                        `}
+                    </div>
+                `;
+            }).join('')}</div>`;
+
+            // Liga os botões de copiar sem embutir o texto do resumo em atributos HTML (evita escaping quebrado)
+            container.querySelectorAll('[data-copy-doc]').forEach((btn) => {
+                const doc = docs.find((d) => d.id === btn.getAttribute('data-copy-doc'));
+                const summary = doc && Array.isArray(doc.summaries) && doc.summaries.length > 0 ? doc.summaries[0] : null;
+                if (summary) btn.onclick = () => copyToClipboard(summary.content, btn);
+            });
+        }
+    </script>
+</body>
+</html>
